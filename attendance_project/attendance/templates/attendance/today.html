@@ -1,0 +1,38 @@
+{% extends "attendance/base.html" %}
+{% block title %}Today — BJ Achuba{% endblock %}
+
+{% block content %}
+  <h1>Today — {{ day|date:"D d M, Y" }}</h1>
+  <p class="muted">{{ logs|length }} record{{ logs|length|pluralize }}</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Surname</th>
+        <th>Other Name</th>
+        <th>Staff ID</th>
+        <th>In</th>
+        <th>Out</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for log in logs %}
+        <tr>
+          <td>{{ log.person.surname }}</td>
+          <td>{{ log.person.other_name }}</td>
+          <td>{{ log.person.staff_id }}</td>
+          <td>{{ log.time_in|date:"H:i"|default:"—" }}</td>
+          <td>{{ log.time_out|date:"H:i"|default:"—" }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5" style="padding:16px 6px;color:#6b7280">No records today.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="actions">
+    <a href="{% url 'attendance:mark' %}" style="text-decoration:none">
+      <button type="button" class="ghost">Back to camera</button>
+    </a>
+  </div>
+{% endblock %}

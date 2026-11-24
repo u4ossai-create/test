@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Attendance Capture</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 700px; margin: 40px auto; padding: 0 20px; }
+        .form-control { padding: 10px; width: 100%; font-size: 16px; margin-bottom: 10px; }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; }
+        .message { color: green; font-weight: bold; }
+        .error { color: red; font-weight: bold; }
+        table { width: 100%; border-collapse: collapse; margin-top: 30px; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+        th { background: #f4f4f4; }
+    </style>
+</head>
+<body>
+    <h2>Staff Attendance</h2>
+
+    {% if message %}<p class="message">{{ message }}</p>{% endif %}
+    {% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">Capture Attendance</button>
+    </form>
+
+    <h3>Today's Attendance</h3>
+    <table>
+        <tr>
+            <th>Staff Number</th>
+            <th>Name</th>
+            <th>Time</th>
+        </tr>
+        {% for record in today_attendance %}
+        <tr>
+            <td>{{ record.staff.staff_number }}</td>
+            <td>{{ record.staff.name }}</td>
+            <td>{{ record.timestamp|date:"H:i:s" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="3">No attendance recorded yet today.</td></tr>
+        {% endfor %}
+    </table>
+</body>
+</html>

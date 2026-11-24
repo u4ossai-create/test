@@ -1,0 +1,92 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#E87722">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" type="image/png" href="{% static 'attendance/icon-192.png' %}">
+  <link rel="apple-touch-icon" href="{% static 'attendance/icon-192.png' %}">
+  <title>{% block title %}BJ Achuba Attendance{% endblock %}</title>
+  <style>
+    :root { --brand-orange:#E87722; --brand-red:#C8102E; --brand-dark:#2b2b2b;
+            --brand-grey:#6b7280; --bg:#f6f7f9; --card:#ffffff; --line:#e5e7eb; }
+    * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+    body {
+      margin:0; min-height:100dvh;
+      font-family:-apple-system,BlinkMacSystemFont,system-ui,"Segoe UI",Roboto,sans-serif;
+      color:var(--brand-dark); background-color:var(--bg);
+      background-image:url("{% static 'attendance/logo.png' %}");
+      background-repeat:no-repeat; background-position:center 55%;
+      background-size:55vmin auto; background-attachment:fixed;
+      display:flex; justify-content:center;
+      padding:16px env(safe-area-inset-right) calc(16px + env(safe-area-inset-bottom)) env(safe-area-inset-left);
+    }
+    body::before { content:""; position:fixed; inset:0;
+                   background:rgba(246,247,249,0.86); pointer-events:none; z-index:0; }
+    .card { width:100%; max-width:480px; position:relative; z-index:1;
+            background:var(--card); border-radius:20px; padding:20px;
+            box-shadow:0 8px 30px rgba(0,0,0,.06); border-top:5px solid var(--brand-orange); }
+    .brand { display:flex; align-items:center; justify-content:center; margin:-4px 0 14px; }
+    .brand img { max-width:200px; height:auto; display:block; }
+    h1 { font-size:1.2rem; margin:6px 0 4px; }
+    .muted { color:var(--brand-grey); font-size:.85rem; margin:0 0 16px; }
+    .stage { position:relative; aspect-ratio:1/1; width:100%; background:#f1f3f5;
+             background-image:url("{% static 'attendance/logo.png' %}");
+             background-repeat:no-repeat; background-position:center; background-size:40%;
+             border-radius:16px; overflow:hidden; border:1px solid var(--line);
+             display:flex; align-items:center; justify-content:center; }
+    .stage video, .stage img { width:100%; height:100%; object-fit:cover; display:block; }
+    .stage .placeholder { color:var(--brand-grey); font-size:.85rem; padding:20px; }
+    .actions { display:grid; gap:10px; margin-top:14px; }
+    button, .file-wrap span {
+      display:block; width:100%; padding:15px 18px; border-radius:12px;
+      border:0; font-size:1rem; font-weight:700; text-align:center; cursor:pointer;
+      font-family:inherit; background:var(--brand-orange); color:#fff; letter-spacing:.3px; }
+    button:disabled { opacity:.45; cursor:not-allowed; }
+    button.secondary { background:var(--brand-red); color:#fff; }
+    button.ghost { background:transparent; color:var(--brand-orange); border:2px solid var(--brand-orange); }
+    .file-wrap { display:block; margin-top:12px; }
+    .file-wrap input { display:none; }
+    .status { font-size:.9rem; margin:14px 0 0; min-height:1.2em; text-align:center; }
+    .error { color:var(--brand-red); font-size:.9rem; margin:10px 0 0;
+             text-align:center; font-weight:600; }
+    dialog { border:0; border-radius:18px; padding:22px; background:#fff;
+             color:var(--brand-dark); width:min(92vw,400px);
+             box-shadow:0 20px 60px rgba(0,0,0,.2); }
+    dialog::backdrop { background:rgba(0,0,0,.5); }
+    dialog label { display:block; font-size:.85rem; color:var(--brand-grey);
+                   margin:12px 0 6px; font-weight:600; }
+    dialog input { width:100%; padding:13px 14px; border-radius:10px;
+                   border:1px solid var(--line); font-size:1rem; }
+    .row { display:flex; gap:10px; margin-top:16px; }
+    .row button { flex:1; }
+    table { width:100%; border-collapse:collapse; font-size:.85rem; }
+    thead th { text-align:left; padding:10px 6px; color:var(--brand-grey);
+               font-weight:600; border-bottom:2px solid var(--brand-orange);
+               font-size:.75rem; text-transform:uppercase; }
+    tbody td { padding:10px 6px; border-bottom:1px solid var(--line); }
+    tbody tr:nth-child(even) td { background:#fafbfc; }
+    .foot { margin-top:18px; text-align:center; font-size:.7rem; color:var(--brand-grey); }
+    .foot strong { color:var(--brand-orange); }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="brand">
+      <img src="{% static 'attendance/logo.png' %}" alt="BJ Achuba Resources Nigeria LTD">
+    </div>
+    {% block content %}{% endblock %}
+    <div class="foot">Powered by <strong>BJ Achuba Resources Nigeria LTD</strong></div>
+  </main>
+  <script>
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(function () {});
+    }
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

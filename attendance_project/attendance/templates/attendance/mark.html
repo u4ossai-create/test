@@ -1,0 +1,190 @@
+{% extends "attendance/base.html" %}
+{% block title %}Attendance — BJ Achuba{% endblock %}
+
+{% block content %}
+  <h1>Attendance</h1>
+  <p class="muted">Enter your surname or staff ID, take a photo, then clock in or out.</p>
+
+  <div class="stage">
+    <video id="video" playsinline autoplay muted webkit-playsinline style="display:none"></video>
+    <canvas id="canvas" hidden></canvas>
+    <img id="preview" alt="" style="display:none">
+    <div class="placeholder" id="placeholder">No photo yet</div>
+  </div>
+
+  <label class="file-wrap" id="fileWrap">
+    <input id="file" type="file" accept="image/*" capture="user">
+    <span>📷 Take photo</span>
+  </label>
+
+  <div class="actions" id="photoActions" style="display:none">
+    <button id="btnRetake" type="button" class="ghost">Retake</button>
+  </div>
+
+  <label for="query" style="display:block;font-size:.85rem;color:#6b7280;
+                             margin:18px 0 6px;font-weight:600">
+    Surname or Staff ID
+  </label>
+  <input id="query" name="query" autocomplete="off"
+         placeholder="e.g. Adaobi or A10021"
+         style="width:100%;padding:14px;border-radius:10px;border:1px solid #e5e7eb;
+                background:#fff;color:#2b2b2b;font-size:1rem">
+
+  <div class="actions">
+    <button id="btnIn" type="button" disabled>Clock In</button>
+    <button id="btnOut" type="button" class="secondary" disabled>Clock Out</button>
+  </div>
+
+  <p class="status" id="status">Take a photo to enable clock in / out.</p>
+  <p class="error" id="error" style="display:none"></p>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  "use strict";
+  var CFG = {
+    url: "{% url 'attendance:mark' %}",
+    csrf: "{{ csrf_token }}",
+    secure: window.isSecureContext === true,
+    gum: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
+  };
+  function $(id){ return document.getElementById(id); }
+
+  var video=$("video"), canvas=$("canvas"), preview=$("preview"), placeholder=$("placeholder");
+  var statusEl=$("status"), errorEl=$("error");
+  var fileWrap=$("fileWrap"), fileInput=$("file");
+  var photoActions=$("photoActions"), btnRetake=$("btnRetake");
+  var queryEl=$("query"), btnIn=$("btnIn"), btnOut=$("btnOut");
+
+  var stream=null, blob=null;
+
+  function newUuid(){
+    try { if (window.crypto && crypto.randomUUID) return crypto.randomUUID(); } catch(e){}
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g,function(c){
+      var r=(Math.random()*16)|0; return (c==="x"?r:(r&0x3)|0x8).toString(16);
+    });
+  }
+  function deviceId(){
+    var id=null; try{ id=localStorage.getItem("attendance.device_id"); }catch(e){}
+    if(!id){ id=newUuid(); try{ localStorage.setItem("attendance.device_id", id); }catch(e){} }
+    return id;
+  }
+
+  function enableButtons(){
+    var ok = !!blob && queryEl.value.trim().length > 0;
+    btnIn.disabled  = !ok;
+    btnOut.disabled = !ok;
+  }
+
+  function showPreview(src){
+    placeholder.style.display="none";
+    video.style.display="none";
+    preview.src=src;
+    preview.style.display="block";
+    photoActions.style.display="block";
+    fileWrap.style.display="none";
+    statusEl.textContent="Enter your surname or staff ID, then clock in or out.";
+    enableButtons();
+  }
+
+  function resetPhoto(){
+    blob=null;
+    preview.removeAttribute("src");
+    preview.style.display="none";
+    video.style.display="none";
+    placeholder.style.display="block";
+    photoActions.style.display="none";
+    fileWrap.style.display="block";
+    fileInput.value="";
+    var cap=document.getElementById("btnCapture");
+    if(cap) cap.remove();
+    statusEl.textContent="Take a photo to enable clock in / out.";
+    enableButtons();
+  }
+
+  function tryLive(){
+    if(!CFG.secure || !CFG.gum) return;
+    navigator.mediaDevices.getUserMedia({
+      video:{ facingMode:"user", width:{ideal:1280}, height:{ideal:720} }, audio:false
+    }).then(function(s){
+      stream=s; video.srcObject=s;
+      video.style.display="block";
+      placeholder.style.display="none";
+      fileWrap.style.display="none";
+      var cap=document.createElement("button");
+      cap.type="button"; cap.textContent="Capture photo"; cap.id="btnCapture";
+      cap.className="ghost"; cap.style.marginTop="12px";
+      photoActions.parentNode.insertBefore(cap, photoActions);
+      photoActions.style.display="block";
+      cap.addEventListener("click", function(){
+        var vw=video.videoWidth, vh=video.videoHeight;
+        if(!vw||!vh) return;
+        var side=Math.min(vw,vh), out=Math.min(640,side);
+        canvas.width=out; canvas.height=out;
+        canvas.getContext("2d").drawImage(video,(vw-side)/2,(vh-side)/2,side,side,0,0,out,out);
+        canvas.toBlob(function(b){ blob=b; cap.remove(); showPreview(canvas.toDataURL("image/jpeg",0.85)); },"image/jpeg",0.85);
+      });
+      statusEl.textContent="Look at the camera, then tap Capture.";
+    }).catch(function(){ /* keep file input */ });
+  }
+
+  fileInput.addEventListener("change", function(e){
+    var f=e.target.files && e.target.files[0];
+    if(!f) return;
+    blob=f; showPreview(URL.createObjectURL(f));
+  });
+
+  btnRetake.addEventListener("click", resetPhoto);
+  queryEl.addEventListener("input", enableButtons);
+
+  function submit(action){
+    if(!blob) return;
+    errorEl.style.display="none";
+    btnIn.disabled=true; btnOut.disabled=true;
+    statusEl.textContent = action==="in" ? "Clocking in…" : "Clocking out…";
+
+    var fd=new FormData();
+    fd.append("action", action);
+    fd.append("query", queryEl.value.trim());
+    fd.append("device_id", deviceId());
+    fd.append("photo", blob, "attendance.jpg");
+
+    fetch(CFG.url, {
+      method:"POST",
+      headers:{ "X-CSRFToken": CFG.csrf },
+      body: fd,
+      credentials:"same-origin"
+    }).then(function(r){
+      return r.json().catch(function(){return {};}).then(function(d){ return {ok:r.ok, data:d}; });
+    }).then(function(r){
+      if(r.ok && r.data.ok){
+        statusEl.textContent = r.data.message;
+        statusEl.style.color = "#15803d";
+        setTimeout(function(){
+          statusEl.style.color="";
+          resetPhoto();
+          queryEl.value="";
+          enableButtons();
+        }, 2500);
+      } else {
+        errorEl.textContent = r.data.error || "Could not record attendance.";
+        errorEl.style.display="block";
+        enableButtons();
+      }
+    }).catch(function(){
+      errorEl.textContent = "Network error. Try again.";
+      errorEl.style.display="block";
+      enableButtons();
+    });
+  }
+
+  btnIn.addEventListener("click", function(){ submit("in"); });
+  btnOut.addEventListener("click", function(){ submit("out"); });
+
+  resetPhoto();
+  deviceId();
+  tryLive();
+})();
+</script>
+{% endblock %}
