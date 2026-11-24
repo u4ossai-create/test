@@ -10,22 +10,24 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
+import os
+import shutil
+import urllib.parse
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+ON_VERCEL = bool(os.environ.get("VERCEL"))
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
+# SECURITY WARNING: set DJANGO_SECRET_KEY in the Vercel project environment.
+# The fallback key is committed to the repo and must not be relied on in production.
+SECRET_KEY = os.environ.get(
+    "DJANGO_SECRET_KEY",
+    'django-insecure-lc+8m_2!20q05vb5*na2+e!&pq!z1b8xe5@(d6erjp&&z_0w8-',
+)
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-lc+8m_2!20q05vb5*na2+e!&pq!z1b8xe5@(d6erjp&&z_0w8-'
-
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
-
-ALLOWED_HOSTS = []
+DEBUG = os.environ.get("DJANGO_DEBUG", "false" if ON_VERCEL else "true").lower() == "true"
 
 
 # Application definition
@@ -89,16 +91,42 @@ WSGI_APPLICATION = 'attendance_project.wsgi.application'
 #     }
 # }
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": "attendance",
-        "USER": "postgres",
-        "PASSWORD": "F0rtune@1234",
-        "HOST": "localhost",
-        "PORT": "5432",
+# Set DATABASE_URL (e.g. from a Neon integration on Vercel, or
+# postgres://postgres:<password>@localhost:5432/attendance locally) to use PostgreSQL.
+DATABASE_URL = os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_URL")
+
+if DATABASE_URL:
+    _db_url = urllib.parse.urlparse(DATABASE_URL)
+    _db_query = dict(urllib.parse.parse_qsl(_db_url.query))
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": _db_url.path.lstrip("/"),
+            "USER": urllib.parse.unquote(_db_url.username or ""),
+            "PASSWORD": urllib.parse.unquote(_db_url.password or ""),
+            "HOST": _db_url.hostname,
+            "PORT": _db_url.port or 5432,
+            "CONN_MAX_AGE": 0 if ON_VERCEL else 60,
+            "OPTIONS": {"sslmode": _db_query["sslmode"]} if "sslmode" in _db_query else {},
+        }
     }
-}
+    USING_EPHEMERAL_SQLITE = False
+else:
+    _sqlite_path = BASE_DIR / "db.sqlite3"
+    # Vercel's filesystem is read-only outside /tmp, so work on a throwaway copy.
+    # Data written here is lost whenever the function instance is recycled.
+    USING_EPHEMERAL_SQLITE = ON_VERCEL
+    if ON_VERCEL:
+        _tmp_sqlite = Path("/tmp/db.sqlite3")
+        if not _tmp_sqlite.exists() and _sqlite_path.exists():
+            shutil.copyfile(_sqlite_path, _tmp_sqlite)
+        _sqlite_path = _tmp_sqlite
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": _sqlite_path,
+        }
+    }
 # Password validation
 # https://docs.djangoproject.com/en/6.1/ref/settings/#auth-password-validators
 
@@ -156,25 +184,34 @@ ATTENDANCE = {
     "MAX_SCREEN_WIDTH": 1024,          # tablets above this are rejected client-side
 }
 
-ALLOWED_HOSTS = ["10.10.10.107", "localhost", "127.0.0.1"]
-
-CSRF_TRUSTED_ORIGINS = [
-    "http://10.10.10.107:8000",
-    "http://localhost:8000",
-]
 MOBILE_ONLY = False
 
 STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "attendance" / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-ALLOWED_HOSTS = ["192.168.137.1", "10.10.10.107", "localhost", "127.0.0.1"]
+ALLOWED_HOSTS = ["192.168.137.1", "10.10.10.107", "localhost", "127.0.0.1", ".vercel.app"]
 CSRF_TRUSTED_ORIGINS = [
     "http://192.168.137.1:8000",
     "http://10.10.10.107:8000",
     "http://localhost:8000",
+    "https://*.vercel.app",
 ]
 
+# Comma-separated custom domains, e.g. "attendance.example.com".
+for _host in filter(None, (h.strip() for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "").split(","))):
+    ALLOWED_HOSTS.append(_host)
+    CSRF_TRUSTED_ORIGINS.append(f"https://{_host}")
+
+if ON_VERCEL:
+    # Vercel terminates TLS at its edge and forwards the original scheme.
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 63072000
+    SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
+
 MEDIA_URL = "/media/"
-MEDIA_ROOT = r"C:\Users\stephen.ossai\Desktop\attendance\attendance_project\media"
-# username ossai PASSWORD - ossaiossai
+# Uploaded photos on Vercel go to /tmp, which is temporary per function instance.
+# Use object storage (e.g. Vercel Blob or S3 via django-storages) to keep them.
+MEDIA_ROOT = Path("/tmp/media") if ON_VERCEL else BASE_DIR / "media"
